@@ -230,6 +230,9 @@ namespace VMManager
 	/// Called when the rich presence string, provided by RetroAchievements, changes.
 	void UpdateDiscordPresence(bool update_session_time);
 
+	/// Returns the CDVD offset of the disc currently running.
+	u32 GetCdvdOffset();
+
 	/// Internal callbacks, implemented in the emu core.
 	namespace Internal
 	{

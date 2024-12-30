@@ -136,7 +136,7 @@ set(pcsx2Sources
 	VUflags.cpp
 	VUmicroMem.cpp
 	VUops.cpp
-)
+	des.cpp)
 
 # Main pcsx2 header
 set(pcsx2Headers
@@ -201,7 +201,8 @@ set(pcsx2Headers
 	vtlb.h
 	VUflags.h
 	VUmicro.h
-	VUops.h)
+	VUops.h
+	des.h)
 
 # CDVD sources
 set(pcsx2CDVDSources
@@ -1155,6 +1156,7 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	Zstd::Zstd
 	demanglegnu
 	ccc
+	des
 	${LIBC_LIBRARIES}
 )
 
@@ -1196,6 +1198,7 @@ target_include_directories(PCSX2_FLAGS INTERFACE
 	"${CMAKE_CURRENT_SOURCE_DIR}"
 	"${CMAKE_BINARY_DIR}/pcsx2"
 	"${CMAKE_BINARY_DIR}/common/include"
+	"${CMAKE_SOURCE_DIR}/3rdparty/des"
 	"${FFMPEG_INCLUDE_DIRS}"
 )
 

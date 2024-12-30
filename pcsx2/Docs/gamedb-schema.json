@@ -356,7 +356,7 @@
                   "type": "string"
                 }
               },
-              "required": ["content"],
+              "required": [ "content" ],
               "additionalProperties": false
             }
           },
@@ -379,7 +379,7 @@
                       "type": "integer"
                     }
                   },
-                  "required": ["offset", "value"]
+                  "required": [ "offset", "value" ]
                 },
                 "minItems": 1
               },
@@ -395,14 +395,17 @@
                       "type": "integer"
                     }
                   },
-                  "required": ["offset", "value"]
+                  "required": [ "offset", "value" ]
                 },
                 "minItems": 1
               }
             },
-            "required": ["pattern", "replacement"]
+            "required": [ "pattern", "replacement" ]
           },
           "minItems": 1
+        },
+        "cdvdOffset": {
+          "type": "integer"
         }
       },
       "required": ["name", "region"],

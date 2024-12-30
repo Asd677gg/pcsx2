@@ -178,6 +178,8 @@ static u32 s_frame_advance_count = 0;
 static bool s_fast_boot_requested = false;
 static bool s_gs_open_on_initialize = false;
 static bool s_thread_affinities_set = false;
+static u32 s_cdvd_offset = 0;
+
 
 static LimiterModeType s_limiter_mode = LimiterModeType::Nominal;
 static s64 s_limiter_ticks_per_frame = 0;
@@ -361,6 +363,12 @@ std::string VMManager::GetDiscVersion()
 u32 VMManager::GetCurrentCRC()
 {
 	return s_current_crc;
+}
+
+u32 VMManager::GetCdvdOffset()
+{
+	std::unique_lock lock(s_info_mutex);
+	return s_cdvd_offset;
 }
 
 const std::string& VMManager::GetCurrentELF()

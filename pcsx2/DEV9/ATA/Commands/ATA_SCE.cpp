@@ -3,6 +3,7 @@
 
 #include "DEV9/ATA/ATA.h"
 #include "DEV9/DEV9.h"
+#include "common/FileSystem.h"
 
 void ATA::HDD_SCE()
 {
@@ -39,6 +40,19 @@ void ATA::HDD_SCE()
 void ATA::SCE_IDENTIFY_DRIVE()
 {
 	PreCmd();
+
+	{
+		//GHC uses UTF8 on all platforms
+		std::string hddPath(EmuConfig.DEV9.HddFile);
+		if (hddPath.empty())
+			EmuConfig.DEV9.HddEnable = false;
+		if (!Path::IsAbsolute(hddPath))
+			hddPath = Path::Combine(EmuFolders::Settings, hddPath);
+		hddPath += ".hddid";
+		auto fp = FileSystem::OpenManagedCFile(hddPath.c_str(), "rb");
+		if (fp && FileSystem::FSize64(fp.get()) >= 128)
+			std::fread(sceSec, 1, 128, fp.get());
+	}
 
 	pioDRQEndTransferFunc = nullptr;
 	DRQCmdPIODataToHost(sceSec, 256 * 2, 0, 256 * 2, true);
