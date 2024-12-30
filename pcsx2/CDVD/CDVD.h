@@ -147,9 +147,15 @@ struct KELFHeader
 	uint8_t SystemType;
 	uint8_t ApplicationType;
 	uint16_t Flags;
-	uint16_t BitCount;
-	uint32_t MGZones;
+	uint16_t BanCount;
+	uint32_t RegionFlags;
 };
+struct ConsoleBan
+{
+	uint8_t iLinkID[8];
+	uint8_t consoleID[8];
+};
+
 #define BIT_BLOCK_ENCRYPTED 1
 #define BIT_BLOCK_SIGNED 2
 struct BitBlock

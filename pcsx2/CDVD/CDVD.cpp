@@ -2572,25 +2572,28 @@ static MECHA_RESULT DecryptKelfHeader()
 	fwrite(cdvd.data_buffer, 1, cdvd.DataSize, f);
 	fclose(f);
 	KELFHeader* header = (KELFHeader*)cdvd.data_buffer;
-	uint32_t offset = sizeof(KELFHeader);
-	// TODO: Flags & 1
+	uint32_t headerSize = sizeof(KELFHeader) + sizeof(ConsoleBan) * header->BanCount;
+
+	if (header->Flags & 1)
+		headerSize += cdvd.data_buffer[headerSize] + 1;
+
 	uint8_t HeaderSignature[8];
 	memset(HeaderSignature, 0, sizeof(HeaderSignature));
-	for (int i = 0; i < sizeof(KELFHeader) + 0x10 * header->BitCount; i += 8)
+	for (int i = 0; i < (headerSize & 0xFFFFFFF8); i += 8)
 	{
 		xor_bit(&cdvd.data_buffer[i], HeaderSignature, HeaderSignature, 8);
 		desEncrypt(g_keyStore.SignatureMasterKey, HeaderSignature);
 	}
 	desDecrypt(g_keyStore.SignatureHashKey, HeaderSignature);
 	desEncrypt(g_keyStore.SignatureMasterKey, HeaderSignature);
-	offset += 0x10 * header->BitCount;
-	if (memcmp(HeaderSignature, &cdvd.data_buffer[offset], 8) != 0)
+	
+	if (memcmp(HeaderSignature, &cdvd.data_buffer[headerSize], 8) != 0)
 	{
 		Console.Error("Invalid HeaderSignature");
 		cdvd.mecha_errorcode = 0x84;
 		return MECHA_RESULT_FAILED;
 	}
-	offset += 8;
+	
 	if (header->HeaderSize != cdvd.DataSize)
 	{
 		Console.Error("Invalid HeaderSize");
@@ -2598,10 +2601,34 @@ static MECHA_RESULT DecryptKelfHeader()
 		return MECHA_RESULT_FAILED;
 	}
 	// SystemType, ApplicationType, Flags check is skipped
-	// TODO: mode 3 Flags check
-	// TODO: BitCount check
+
+	if (cdvd.mode == 3 && !(header->Flags & 4) && !(header->Flags & 8))
+	{
+		cdvd.mecha_errorcode = 0x82;
+		return MECHA_RESULT_FAILED;
+	}
+	uint8_t consoleID[8];
+	cdvdReadConsoleID(consoleID);
+	uint8_t iLinkID[8];
+	cdvdReadILinkID(iLinkID);
+	ConsoleBan* bans = (ConsoleBan*)&cdvd.data_buffer[sizeof(KELFHeader)];
+	for (int i = 0; i < header->BanCount; ++i)
+	{
+		if (memcmp(bans[i].iLinkID, iLinkID, 8) == 0)
+		{
+			if (memcmp(bans[i].consoleID, consoleID, 8) == 0)
+			{
+				cdvd.mecha_errorcode = 0x85;
+				return MECHA_RESULT_FAILED;
+			}
+		}
+	}
+
+	uint32_t offset = headerSize + sizeof(HeaderSignature);
+
 	// Region check is skipped
 	// Nonce ban is skipped
+
 	uint8_t Kbit[16];
 	if (cdvd.mode == 1 || cdvd.mode == 3)
 	{
