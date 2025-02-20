@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2024 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
@@ -88,7 +88,7 @@ namespace Patch
 	/// Reloads cheats/patches. If verbose is set, the number of patches loaded will be shown in the OSD.
 	extern void ReloadPatches(const std::string& serial, u32 crc, bool reload_files, bool reload_enabled_list, bool verbose, bool verbose_if_changed);
 
-	extern void UpdateActivePatches(bool reload_enabled_list, bool verbose, bool verbose_if_changed);
+	extern void UpdateActivePatches(bool reload_enabled_list, bool verbose, bool verbose_if_changed, bool apply_new_patches);
 	extern void ApplyPatchSettingOverrides();
 	extern bool ReloadPatchAffectingOptions();
 	extern void UnloadPatches();

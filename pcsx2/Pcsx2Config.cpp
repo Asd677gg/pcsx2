@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2024 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2002-2025 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "common/CocoaTools.h"
@@ -840,6 +840,10 @@ bool Pcsx2Config::GSOptions::OptionsAreEqual(const GSOptions& right) const
 		OpEqu(PNGCompressionLevel) &&
 		OpEqu(SaveN) &&
 		OpEqu(SaveL) &&
+		OpEqu(SaveB) &&
+		OpEqu(SaveNF) &&
+		OpEqu(SaveLF) &&
+		OpEqu(SaveBF) &&
 
 		OpEqu(ExclusiveFullscreenControl) &&
 		OpEqu(ScreenshotSize) &&
@@ -966,6 +970,8 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitBoolEx(SaveFrame, "savef");
 	SettingsWrapBitBoolEx(SaveTexture, "savet");
 	SettingsWrapBitBoolEx(SaveDepth, "savez");
+	SettingsWrapBitBoolEx(SaveAlpha, "savea");
+	SettingsWrapBitBoolEx(SaveInfo, "savei");
 	SettingsWrapBitBool(DumpReplaceableTextures);
 	SettingsWrapBitBool(DumpReplaceableMipmaps);
 	SettingsWrapBitBool(DumpTexturesWithFMVActive);
@@ -1026,6 +1032,10 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapBitfieldEx(PNGCompressionLevel, "png_compression_level");
 	SettingsWrapBitfieldEx(SaveN, "saven");
 	SettingsWrapBitfieldEx(SaveL, "savel");
+	SettingsWrapBitfieldEx(SaveB, "saveb");
+	SettingsWrapBitfieldEx(SaveNF, "savenf");
+	SettingsWrapBitfieldEx(SaveLF, "savelf");
+	SettingsWrapBitfieldEx(SaveBF, "savebf");
 
 	SettingsWrapEntryEx(CaptureContainer, "CaptureContainer");
 	SettingsWrapEntryEx(VideoCaptureCodec, "VideoCaptureCodec");
@@ -1108,6 +1118,13 @@ void Pcsx2Config::GSOptions::MaskUpscalingHacks()
 bool Pcsx2Config::GSOptions::UseHardwareRenderer() const
 {
 	return (Renderer != GSRendererType::Null && Renderer != GSRendererType::SW);
+}
+
+bool Pcsx2Config::GSOptions::ShouldDump(int draw, int frame) const
+{
+	return DumpGSData &&
+		(SaveN <= draw) && ((SaveL < 0) || (draw < SaveN + SaveL)) && (draw % SaveB == 0) &&
+		(SaveNF <= frame) && ((SaveLF < 0) || (frame < SaveNF + SaveLF)) && (frame % SaveBF == 0);
 }
 
 static constexpr const std::array s_spu2_sync_mode_names = {
@@ -1898,6 +1915,7 @@ Pcsx2Config::Pcsx2Config()
 	InhibitScreensaver = true;
 	BackupSavestate = true;
 	WarnAboutUnsafeSettings = true;
+	ManuallySetRealTimeClock = false;
 
 	// To be moved to FileMemoryCard pluign (someday)
 	for (uint slot = 0; slot < 8; ++slot)
@@ -1910,6 +1928,12 @@ Pcsx2Config::Pcsx2Config()
 
 	GzipIsoIndexTemplate = "$(f).pindex.tmp";
 	PINESlot = 28011;
+	RtcYear = 0;
+	RtcMonth = 1;
+	RtcDay = 1;
+	RtcHour = 0;
+	RtcMinute = 0;
+	RtcSecond = 0;
 }
 
 void Pcsx2Config::LoadSaveCore(SettingsWrapper& wrap)
@@ -1940,6 +1964,8 @@ void Pcsx2Config::LoadSaveCore(SettingsWrapper& wrap)
 
 	SettingsWrapBitBool(WarnAboutUnsafeSettings);
 
+	SettingsWrapBitBool(ManuallySetRealTimeClock);
+
 	// Process various sub-components:
 
 	Speedhacks.LoadSave(wrap);
@@ -1959,6 +1985,12 @@ void Pcsx2Config::LoadSaveCore(SettingsWrapper& wrap)
 
 	SettingsWrapEntry(GzipIsoIndexTemplate);
 	SettingsWrapEntry(PINESlot);
+	SettingsWrapEntry(RtcYear);
+	SettingsWrapEntry(RtcMonth);
+	SettingsWrapEntry(RtcDay);
+	SettingsWrapEntry(RtcHour);
+	SettingsWrapEntry(RtcMinute);
+	SettingsWrapEntry(RtcSecond);
 
 	// For now, this in the derived config for backwards ini compatibility.
 	SettingsWrapEntryEx(CurrentBlockdump, "BlockDumpSaveDirectory");
@@ -2021,6 +2053,7 @@ void Pcsx2Config::CopyRuntimeConfig(Pcsx2Config& cfg)
 	CurrentIRX = std::move(cfg.CurrentIRX);
 	CurrentGameArgs = std::move(cfg.CurrentGameArgs);
 	CurrentAspectRatio = cfg.CurrentAspectRatio;
+	IsPortableMode = cfg.IsPortableMode;
 
 	for (u32 i = 0; i < sizeof(Mcd) / sizeof(Mcd[0]); i++)
 	{
@@ -2107,8 +2140,15 @@ bool EmuFolders::SetResourcesDirectory()
 
 bool EmuFolders::ShouldUsePortableMode()
 {
-	// Check whether portable.ini exists in the program directory.
-	return FileSystem::FileExists(Path::Combine(AppRoot, "portable.ini").c_str()) || FileSystem::FileExists(Path::Combine(AppRoot, "portable.txt").c_str());
+	// Check whether portable.ini/txt exists in the program directory or the `-portable` launch arguments have been passed.
+	if (FileSystem::FileExists(Path::Combine(AppRoot, "portable.ini").c_str()) ||
+		FileSystem::FileExists(Path::Combine(AppRoot, "portable.txt").c_str()) ||
+		EmuConfig.IsPortableMode)
+	{
+		return true;
+	}
+
+	return false;
 }
 
 std::string EmuFolders::GetPortableModePath()
@@ -2163,7 +2203,22 @@ bool EmuFolders::SetDataDirectory(Error* error)
 
 	// couldn't determine the data directory, or using portable mode? fallback to portable.
 	if (DataRoot.empty())
+	{
+#if defined(__linux__)
+	// special check if we're on appimage
+	// always make sure that DataRoot
+	// is adjacent next to the appimage
+	if (getenv("APPIMAGE"))
+	{
+		std::string_view appimage_path = Path::GetDirectory(getenv("APPIMAGE"));
+		DataRoot = Path::RealPath(Path::Combine(appimage_path, "PCSX2"));
+	}
+	else
 		DataRoot = Path::Combine(AppRoot, GetPortableModePath());
+#else
+		DataRoot = Path::Combine(AppRoot, GetPortableModePath());
+#endif
+	}
 
 	// inis is always below the data root
 	Settings = Path::Combine(DataRoot, "inis");
